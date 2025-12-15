@@ -1,9 +1,11 @@
+#!/usr/bin/env python3
+
 import json
 import time
 import random
 import glob
 import os
-from flask import Flask, session, jsonify, render_template, redirect, url_for
+from flask import Flask, session, jsonify, render_template, redirect, url_for, request
 from werkzeug.security import generate_password_hash, check_password_hash
 
 with open("./.env", "r") as f:
@@ -19,14 +21,14 @@ data = {}
 def generate_id(name_of=""):
     return name_of + "_" + time.time() + str( random.randint(0, 99999) )
 
-def create_session(user:User):
+def create_session(user):
     new_session = {
         "id" : generate_id("session"),
         "username" : user.data["email"]
     }
 
     user.active_sessions.append(new_session["id"])
-    sessions["id"] = new_session
+    sessions[new_session["id"]] = new_session
     return new_session
 
 def find_user_from_session():
@@ -44,20 +46,23 @@ def find_user_from_session():
                 del sessions["cookie"]
     return None
 
-def save_sessions():
+def save_users_and_sessions():
     with open("./data/users_and_sessions.json", "w") as f:
         json.dump({
-            "users" : users,
+            "users" : {k:v.seralise() for k,v in users.items()},
             "sessions" : sessions
         }, f)
     return
 
-def load_sessions():
+def load_users_and_sessions():
     global users
     global sessions
     if os.path.exists("./data/users_and_sessions.json"):
         with open("./data/users_and_sessions.json", "r") as f:
-            users, sessions = json.load(f).values()
+            #users, sessions = json.load(f).values()
+            data = json.load(f)
+            users = {k:User.from_json(v) for k,v in data["users"].items()}
+            sessions = data["sessions"]
     else:
         print("./data/users_and_sessions.json does not exist: will not load data.")
     return
@@ -67,14 +72,14 @@ def needs_user(func): # decorator to check that the client is logged in
         user = find_user_from_session() # will use flask session 
         if user:
             return func(user, *args, **kwargs)
-        return redirect(url_for("login"))
+        return redirect(url_for("_login"))
     return wrapper
 
 
 class User():
     def __init__(self, email, password):
         self.data = {
-            "id" : generate_id("user")
+            "id" : generate_id("user"),
             "email" : email,
             "password_hash" : generate_password_hash(password),
             "active_sessions" : [],
@@ -102,7 +107,7 @@ class User():
             if session_id in sessions:
                 del sessions[session_id]
             else:
-                print(f"[{user['email']}] {session_id} not found in sessions, skipping."
+                print(f"[{user['email']}] {session_id} not found in sessions, skipping.")
 
         self.data["active_sessions"] = []
 
@@ -112,10 +117,56 @@ class User():
 @app.route("/login", methods = ["POST", "GET"])
 def _login():
     if request.method == "GET":
-        render_template("login.html")
+        return render_template("login.html")
     elif request.method == "POST":
-        pass # handle login here, and set session["cookie"] to the new_session id
+
+        # get data,
+        data = request.json
+        email = data["email"]
+        password = data["password"]
+        # check password
+        # check user exists, then password
+        if email in users.keys():
+            # if user exists, check password is valid
+            user = users[email]
+
+            if check_password_hash(user.data["password_hash"], password):
+                new_session = create_session(user)
+                session["cookie"] = new_session["id"]
+                
+                save_users_and_sessions()
+
+                return jsonify({"success" : True, "message" : "Successfully logged in"}
+
+        return jsonify({"success" : False, "message" : "Invalid email or password")
+        
+@app.route("/signup", methods = ["POST", "GET"])
+def _signup():
+    if request.method == "GET":
+        return render_template("signup.html")
+    elif request.method == "POST":
+        data = request.json
+        
+        email = data["email"]
+        password = data["password"]
+
+        # ensure there's no existing user with username
+        if email in users.keys():
+            return jsonify({"success" : False, "message" : "email/username in use. Please choose another."})
+
+        # add to the database 
+        new_user = User(email, password)
+        users[email] = new_user
+
+        save_users_and_sessions()
+        
+        return jsonify({"success" : True, "message" : f"account created for {email}"})
+
+@app.route("/", methods = ["POST", "GET"])
+@needs_user
+def _index(user):
+    pass
 
 if __name__ == "__main__":
-    load_sessions()
-    app.run(port=8077, host="0.0.0.0")
+    load_users_and_sessions()
+    app.run(port=8077, host="localhost", debug=True)

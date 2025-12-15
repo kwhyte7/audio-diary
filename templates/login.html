@@ -1,4 +1,35 @@
 {% extends "base.html" %}
 {% block body %}
 
+<div class="flex column login container">
+	<h1>login</h1>
+	<input placeholder="email/username"></input>
+	<input placeholder="password"></input>
+	<a></a>
+	<button onclick="login()">login</button>
+</div>
+
+{% endblock %}
+
+{% block script %}
+const messageElement = document.querySelector(".flex a");
+async function login() {
+	const [email, password] = Array.from(document.querySelectorAll(".flex input")).map(v => v.value);
+	
+	// redir to next page if response is nice
+	const response = await fetch("/login", {
+		method : "POST",
+		headers : {"Content-type" : "application/json"},
+		body : JSON.stringify({email : email, password : password})
+	});
+
+	const data = await response.json();
+	
+	if (data.success) {
+		window.location.href = "/";
+	}
+	messageElement.textContent = data.message
+
+
+}
 {% endblock %}
