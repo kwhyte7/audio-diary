@@ -4,15 +4,16 @@
 <div class="flex column login container">
 	<h1>login</h1>
 	<input placeholder="email/username"></input>
-	<input placeholder="password"></input>
-	<a></a>
+	<input type="password" placeholder="password"></input>
+	<p></p>
+	<a href="/signup">Don't have an account? Sign up here.</a>
 	<button onclick="login()">login</button>
 </div>
 
 {% endblock %}
 
 {% block script %}
-const messageElement = document.querySelector(".flex a");
+const messageElement = document.querySelector(".flex p");
 async function login() {
 	const [email, password] = Array.from(document.querySelectorAll(".flex input")).map(v => v.value);
 	

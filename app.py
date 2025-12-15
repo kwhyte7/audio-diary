@@ -17,9 +17,10 @@ app.config["SECRET_KEY"] = env["SECRET_KEY"]
 users = {}
 sessions = {}
 data = {}
+documents = {}
 
 def generate_id(name_of=""):
-    return name_of + "_" + time.time() + str( random.randint(0, 99999) )
+    return name_of + "_" + str(time.time()) + str( random.randint(0, 99999) )
 
 def create_session(user):
     new_session = {
@@ -27,7 +28,7 @@ def create_session(user):
         "username" : user.data["email"]
     }
 
-    user.active_sessions.append(new_session["id"])
+    user.data["active_sessions"].append(new_session["id"])
     sessions[new_session["id"]] = new_session
     return new_session
 
@@ -40,7 +41,7 @@ def find_user_from_session():
         username = linked_session["username"]
         if username in users.keys():
             user = users[username]
-            if cookie in user["active_sessions"]:
+            if cookie in user.data["active_sessions"]:
                 return user
             else:
                 del sessions["cookie"]
@@ -49,7 +50,7 @@ def find_user_from_session():
 def save_users_and_sessions():
     with open("./data/users_and_sessions.json", "w") as f:
         json.dump({
-            "users" : {k:v.seralise() for k,v in users.items()},
+            "users" : {k:v.serialise() for k,v in users.items()},
             "sessions" : sessions
         }, f)
     return
@@ -73,7 +74,38 @@ def needs_user(func): # decorator to check that the client is logged in
         if user:
             return func(user, *args, **kwargs)
         return redirect(url_for("_login"))
+    
     return wrapper
+
+class DocumentManager():
+    def __init__(self, path):
+        return
+
+    @staticmethod
+    def new(self, document_id):
+        return
+
+    @staticmethod
+    def from_json(self, document_id):
+        # so this will just really track the path mainly, then will have many functions that stem from that
+        return
+
+    def save_recording(self):
+        # just save recording into a folder where:
+        # > recordingDate/ 
+        # >> audio.mp3 >> transcription.txt
+        return
+
+    def transcribe_raw_recording(self):
+        # use faster-whisper to transcribe, then save for recordingDate/transcription.txt
+        return
+
+    def clean_transcription(self):
+        # use the specified model to clean up the transcription. Will have more in settings.yml for modelname, system prompt & kwargs like temperature & seed.
+        return
+
+    # we're also going to want to be able to access the actual .md (are we going to use MD editor instad of quill?
+
 
 
 class User():
@@ -89,7 +121,7 @@ class User():
 
     @staticmethod
     def from_json(data):
-        user = User()
+        user = User("email", "password")
         user.data = data
         return user
 
@@ -113,6 +145,16 @@ class User():
 
         save_sessions()
         return
+
+    def get_folder_path(self):
+        path = f"./data/user_{self.user.data['id']}",
+        os.mkdirs(path, exist_ok=True)
+        return path
+
+    def get_document_folder_path(self, document_id):
+        path = f"{self.get_folder_path()}/document_{document_id}"
+        os.mkdirs(path, exist_ok=True)
+        return path
 
 @app.route("/login", methods = ["POST", "GET"])
 def _login():
@@ -162,10 +204,11 @@ def _signup():
         
         return jsonify({"success" : True, "message" : f"account created for {email}"})
 
+
 @app.route("/", methods = ["POST", "GET"])
 @needs_user
 def _index(user):
-    pass
+    return render_template("index.html")
 
 if __name__ == "__main__":
     load_users_and_sessions()
