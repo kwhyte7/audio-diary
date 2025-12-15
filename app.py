@@ -136,9 +136,9 @@ def _login():
                 
                 save_users_and_sessions()
 
-                return jsonify({"success" : True, "message" : "Successfully logged in"}
+                return jsonify({"success" : True, "message" : "Successfully logged in"})
 
-        return jsonify({"success" : False, "message" : "Invalid email or password")
+        return jsonify({"success" : False, "message" : "Invalid email or password"})
         
 @app.route("/signup", methods = ["POST", "GET"])
 def _signup():
