@@ -1,0 +1,14 @@
+transcribe:
+  whisper:
+    model_size_or_path: large-v3
+    device: cuda
+    compute_type: float16
+  beam_size: 5
+
+writer:
+  ollama: # put your arguments for your model here
+    model: qwen-coder:30b
+    # temperature : 0.6
+  system_prompt: "Format this into a legible .md file of the transcription. DO NOT OMIT INFORMATION"
+
+allow_signups: true
