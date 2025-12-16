@@ -78,17 +78,55 @@ def needs_user(func): # decorator to check that the client is logged in
     return wrapper
 
 class DocumentManager():
-    def __init__(self, path):
+    def __init__(self, user_id="", document_id=""):
+        self.data = {
+            "id" : document_id,
+            "user_id" : user_id,
+            "path" : f"./data/{userid}/{documentid}/",
+            "content" : "" # md can go here IG, why split it into multiple files?
+        }
         return
 
     @staticmethod
-    def new(self, document_id):
+    def create(self, user_id, document_id):
+        # create document
+        doc = DocumentManager(user_id, document_id)
+        path = doc.data["path"]
+        os.mkdirs(path, exist_ok=True)
+
+        doc.save()
+
+        # maybe don't even bother saving in documents, because we can glob it.
+
+        if user_id in document.keys():
+            documents[user_id][document_id] = doc
+        else:
+            documents[user_id] = {}
+            documents[user_id][document_id] = doc
+
         return
 
     @staticmethod
-    def from_json(self, document_id):
+    def from_json(self, json_data):
         # so this will just really track the path mainly, then will have many functions that stem from that
-        return
+        doc = DocumentManager()
+        dod.data = json_data
+        return doc
+    
+    @staticmethod
+    def from_id(self, user_id, document_id):
+        # path 
+        path = f"./data/{user_id}/{document_id}/"
+        if os.path.exists(path):
+            with open(path + "data.json") as f:
+                return DocumentManager.from_json(json.load(f))
+        else:
+            print(f"No document found for {user_id} @ id {document_id}")
+            return None
+
+    def save(self):
+        with open(self.path + "data.json", "w") as f:
+            json.dump(self.data, f)
 
     def save_recording(self):
         # just save recording into a folder where:
@@ -105,9 +143,6 @@ class DocumentManager():
         return
 
     # we're also going to want to be able to access the actual .md (are we going to use MD editor instad of quill?
-
-
-
 class User():
     def __init__(self, email, password):
         self.data = {
