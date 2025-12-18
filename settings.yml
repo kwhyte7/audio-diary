@@ -1,6 +1,6 @@
 transcribe:
   whisper:
-    model_size_or_path: large-v3
+    model_size_or_path: small
     device: cuda
     compute_type: float16
   beam_size: 5

@@ -5,6 +5,8 @@ import time
 import random
 import glob
 import os
+import shutil
+from functools import wraps
 from flask import Flask, session, jsonify, render_template, redirect, url_for, request
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -20,7 +22,7 @@ data = {}
 documents = {}
 
 def generate_id(name_of=""):
-    return name_of + "_" + str(time.time()) + str( random.randint(0, 99999) )
+    return name_of + "_" + str(time.time()).replace(".","") + str( random.randint(0, 99999) )
 
 def create_session(user):
     new_session = {
@@ -69,6 +71,7 @@ def load_users_and_sessions():
     return
 
 def needs_user(func): # decorator to check that the client is logged in
+    @wraps(func)
     def wrapper(*args, **kwargs):
         user = find_user_from_session() # will use flask session 
         if user:
@@ -77,72 +80,6 @@ def needs_user(func): # decorator to check that the client is logged in
     
     return wrapper
 
-class DocumentManager():
-    def __init__(self, user_id="", document_id=""):
-        self.data = {
-            "id" : document_id,
-            "user_id" : user_id,
-            "path" : f"./data/{userid}/{documentid}/",
-            "content" : "" # md can go here IG, why split it into multiple files?
-        }
-        return
-
-    @staticmethod
-    def create(self, user_id, document_id):
-        # create document
-        doc = DocumentManager(user_id, document_id)
-        path = doc.data["path"]
-        os.mkdirs(path, exist_ok=True)
-
-        doc.save()
-
-        # maybe don't even bother saving in documents, because we can glob it.
-
-        if user_id in document.keys():
-            documents[user_id][document_id] = doc
-        else:
-            documents[user_id] = {}
-            documents[user_id][document_id] = doc
-
-        return
-
-    @staticmethod
-    def from_json(self, json_data):
-        # so this will just really track the path mainly, then will have many functions that stem from that
-        doc = DocumentManager()
-        dod.data = json_data
-        return doc
-    
-    @staticmethod
-    def from_id(self, user_id, document_id):
-        # path 
-        path = f"./data/{user_id}/{document_id}/"
-        if os.path.exists(path):
-            with open(path + "data.json") as f:
-                return DocumentManager.from_json(json.load(f))
-        else:
-            print(f"No document found for {user_id} @ id {document_id}")
-            return None
-
-    def save(self):
-        with open(self.path + "data.json", "w") as f:
-            json.dump(self.data, f)
-
-    def save_recording(self):
-        # just save recording into a folder where:
-        # > recordingDate/ 
-        # >> audio.mp3 >> transcription.txt
-        return
-
-    def transcribe_raw_recording(self):
-        # use faster-whisper to transcribe, then save for recordingDate/transcription.txt
-        return
-
-    def clean_transcription(self):
-        # use the specified model to clean up the transcription. Will have more in settings.yml for modelname, system prompt & kwargs like temperature & seed.
-        return
-
-    # we're also going to want to be able to access the actual .md (are we going to use MD editor instad of quill?
 class User():
     def __init__(self, email, password):
         self.data = {
@@ -150,6 +87,7 @@ class User():
             "email" : email,
             "password_hash" : generate_password_hash(password),
             "active_sessions" : [],
+            "documents" : [],
             "encrypt_data_with_hash" : False
         }
         return
@@ -182,14 +120,71 @@ class User():
         return
 
     def get_folder_path(self):
-        path = f"./data/user_{self.user.data['id']}",
-        os.mkdirs(path, exist_ok=True)
+        path = f"./data/{self.data['id']}"
+        os.makedirs(path, exist_ok=True)
         return path
 
-    def get_document_folder_path(self, document_id):
-        path = f"{self.get_folder_path()}/document_{document_id}"
-        os.mkdirs(path, exist_ok=True)
+    def get_document_path(self, document_id):
+        path = os.path.join(self.get_folder_path(), document_id)
+        os.makedirs(path, exist_ok=True)
         return path
+
+    def get_document_ids(self):
+        return [os.path.basename(os.path.dirname(path)) for path in glob.glob(os.path.join(self.get_folder_path(), "*/"))]
+    
+    def get_documents(self):
+        docs = {}
+
+        for document_id in self.get_document_ids():
+            docs[document_id] = self.load_document_meta(document_id)
+
+        return docs 
+
+    def new_document(self, name):
+        document_id = generate_id("document")
+        document_path = self.get_document_path(document_id)
+        with open(os.path.join(document_path, "doc.json"), "w") as f:
+            f.write("")
+
+        with open(os.path.join(document_path, "meta.json"), "w") as f:
+            json.dump({"name" : name, "creation" : time.time(), "last_modified" : time.time()}, f)
+
+        return
+    
+    def load_document_meta(self, document_id):
+        
+        with open(os.path.join(self.get_document_path(document_id), "meta.json")) as f:
+            return json.load(f)
+
+    def load_document(self, document_id):
+        document_path = self.get_document_path(document_id)
+        
+        with open(os.path.join(document_path, "meta.json")) as f:
+            meta = json.load(f)
+
+        with open(os.path.join(document_path, "doc.json")) as f:
+            data = json.load(f)
+
+        return {"meta" : meta, "data" : data}
+
+    def save_document(self, document_id, json_content, name=""):
+        document_path = self.get_document_path(document_id)
+        
+        with open(os.path.join(document_path, "meta.json")) as f:
+            meta = json.load(f)
+
+        if name:
+            meta["name"] = name
+
+        meta["last_modified"] = time.time
+
+        with open(os.path.join(document_path, "meta.json"), "w") as f:
+            json.dump(meta, f)
+
+        with open(os.path.join(document_path, "doc.json"), "w") as f:
+            json.dump(json_content, f)
+
+        return
 
 @app.route("/login", methods = ["POST", "GET"])
 def _login():
@@ -243,8 +238,19 @@ def _signup():
 @app.route("/", methods = ["POST", "GET"])
 @needs_user
 def _index(user):
-    return render_template("index.html")
+    if request.method == "GET":
+        return render_template("index.html")
+    elif request.method == "POST":
+        # ?
+        return
+
+@app.route("/documents/", methods = ["GET"])
+@needs_user
+def _documents(user):
+    if request.method == "GET":
+        # get user documents
+        return
 
 if __name__ == "__main__":
     load_users_and_sessions()
-    app.run(port=8077, host="localhost", debug=True)
+    #app.run(port=8077, host="localhost", debug=True)
