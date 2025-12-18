@@ -68,13 +68,26 @@ async function updateDocuments() {
 	}
 }
 
-function createNewDocument() {
+async function createNewDocument() {
 	title = prompt("What is the new document's name");
-	console.log(title);
+	
+	const response = await fetch("/documents/new", {
+		method : "POST",
+		headers : {
+			"Content-type" : "text/plain"
+		},
+		body : title
+	});
+
+	if (!response.ok) {
+		alert("Response not ok!")	
+	}
+
+	updateDocuments();
 }
 
 function loadDocument(documentId) {
-	console.log(documentId)
+	window.location.href = `/documents/edit?id=${documentId}`
 }
 
 updateDocuments()

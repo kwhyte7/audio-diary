@@ -144,7 +144,7 @@ class User():
         document_id = generate_id("document")
         document_path = self.get_document_path(document_id)
         with open(os.path.join(document_path, "doc.json"), "w") as f:
-            f.write("")
+            f.write("{}")
 
         with open(os.path.join(document_path, "meta.json"), "w") as f:
             json.dump({"name" : name, "description" : "", "creation" : time.time(), "last_modified" : time.time()}, f)
@@ -176,7 +176,7 @@ class User():
         if name:
             meta["name"] = name
 
-        meta["last_modified"] = time.time
+        meta["last_modified"] = time.time()
 
         with open(os.path.join(document_path, "meta.json"), "w") as f:
             json.dump(meta, f)
@@ -254,7 +254,7 @@ def _documents(user):
 @app.route("/documents/new", methods=["POST"]) # might want to change this to a POST
 @needs_user
 def _documents_new_doc_name(user):
-    doc_name = request.text
+    doc_name = request.get_data(as_text=True)
     user.new_document(doc_name)
     return "success"
 
@@ -265,17 +265,31 @@ def _documents_load_doc_id(user, doc_id):
 
 @app.route("/documents/delete/<doc_id>")
 @needs_user
-def _document_delete_doc_id():
+def _document_delete_doc_id(user, doc_id):
     # write user.delete
     return
 
-@app.route("/documents/edit/<doc_id>")
+@app.route("/documents/save/<doc_id>", methods=["POST"])
+@needs_user
+def _document_save_doc_id(user, doc_id):
+    if request.method == "POST":
+        data = request.json
+
+        quilldata = data["content"]
+        namedata = data["name"]
+
+        user.save_document(doc_id, quilldata, namedata)
+        return "success"
+
+    return "finished"
+
+@app.route("/documents/edit")
 @needs_user
 def _documents_edit(user):
     # render_template editor
     # on load, quill load doc ID or something
-    return
+    return render_template("editor.html")
 
 if __name__ == "__main__":
     load_users_and_sessions()
-    #app.run(port=8077, host="localhost", debug=True)
+    app.run(host="localhost", debug=True)
