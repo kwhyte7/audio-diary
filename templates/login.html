@@ -13,6 +13,7 @@
 {% endblock %}
 
 {% block script %}
+<script>
 const messageElement = document.querySelector(".flex p");
 async function login() {
 	const [email, password] = Array.from(document.querySelectorAll(".flex input")).map(v => v.value);
@@ -33,4 +34,5 @@ async function login() {
 
 
 }
+</script>
 {% endblock %}

@@ -147,7 +147,7 @@ class User():
             f.write("")
 
         with open(os.path.join(document_path, "meta.json"), "w") as f:
-            json.dump({"name" : name, "creation" : time.time(), "last_modified" : time.time()}, f)
+            json.dump({"name" : name, "description" : "", "creation" : time.time(), "last_modified" : time.time()}, f)
 
         return
     
@@ -249,7 +249,32 @@ def _index(user):
 def _documents(user):
     if request.method == "GET":
         # get user documents
-        return
+        return user.get_documents()
+
+@app.route("/documents/new", methods=["POST"]) # might want to change this to a POST
+@needs_user
+def _documents_new_doc_name(user):
+    doc_name = request.text
+    user.new_document(doc_name)
+    return "success"
+
+@app.route("/documents/load/<doc_id>")
+@needs_user
+def _documents_load_doc_id(user, doc_id):
+    return user.load_document(doc_id)
+
+@app.route("/documents/delete/<doc_id>")
+@needs_user
+def _document_delete_doc_id():
+    # write user.delete
+    return
+
+@app.route("/documents/edit/<doc_id>")
+@needs_user
+def _documents_edit(user):
+    # render_template editor
+    # on load, quill load doc ID or something
+    return
 
 if __name__ == "__main__":
     load_users_and_sessions()

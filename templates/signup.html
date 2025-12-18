@@ -14,6 +14,7 @@
 {% endblock %}
 
 {% block script %}
+<script>
 const messageElement = document.querySelector(".flex p");
 async function signUp() {
 	const [email, password, confirmPassword] = Array.from(document.querySelectorAll(".flex input")).map(v => v.value);
@@ -41,4 +42,5 @@ async function signUp() {
 
 	// redir to next page if response is nice
 }
+</script>
 {% endblock %}

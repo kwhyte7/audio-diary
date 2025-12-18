@@ -4,3 +4,5 @@
 .column {flex-flow: column;}
 
 .center-all {align-items: center; align-content: center; justify-items: center; justify-content: center;}
+.content div:hover {background-color: lightgray;}
+.content div {background-color : white;}
