@@ -170,17 +170,24 @@
     <script>
         // Initialize Quill editor
         const quill = new Quill('#editor', {
-            theme: 'snow',
-            modules: {
-                toolbar: [
-                    [{ 'header': [1, 2, 3, false] }],
-                    ['bold', 'italic', 'underline'],
-                    ['link', 'image'],
-                    ['clean']
-                ]
-            }
-        });
-
+  theme: 'snow',
+  modules: {
+    toolbar: [
+      [{ font: [] }],                // font family
+      [{ size: ['small', false, 'large', 'huge'] }],  // font sizes
+      ['bold', 'italic', 'underline', 'strike'],      // text formatting
+      [{ color: [] }, { background: [] }],           // text color & background highl
+      [{ script: 'sub'}, { script: 'super' }],      // superscript/subscript
+      [{ header: 1 }, { header: 2 }, 'blockquote', 'code-block'], // headers & blocks
+      [{ list: 'ordered'}, { list: 'bullet' }, { indent: '-1'}, { indent: '+1' }], // lists & indent
+      [{ direction: 'rtl' }],         // text direction
+      [{ align: [] }],                // text alignment
+      ['link', 'image', 'video', 'formula'], // media & formulas
+      ['clean']                       // remove formatting
+    ]
+  },
+  placeholder: 'Compose your content...'
+}); 
         // Audio recording variables
         let mediaRecorder;
         let audioChunks = [];
