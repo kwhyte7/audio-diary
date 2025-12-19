@@ -309,6 +309,7 @@
                     // alert("Audio recording uploaded successfully!");
 		    const data = await response.json();
 		    quill.insertText(quill.getLength, data.content);
+		    saveDocument();
                 } else {
                     alert("Failed to upload audio recording!");
                 }
