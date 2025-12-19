@@ -7,6 +7,7 @@ import glob
 import os
 import shutil
 from functools import wraps
+from transcribe import transcribe
 from flask import Flask, session, jsonify, render_template, redirect, url_for, request
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -134,7 +135,7 @@ class User():
         return
 
     def get_document_recording_path(self, document_id):
-        path = os.path.join(self.get_docuent_path(document_id), "recordings")
+        path = os.path.join(self.get_document_path(document_id), "recordings")
         os.makedirs(path, exist_ok=True)
         return path
 
@@ -253,7 +254,7 @@ def _index(user):
         # ?
         return
 
-@app.route("/documents/", methods = ["GET"])
+@app.route("/documents", methods = ["GET"])
 @needs_user
 def _documents(user):
     if request.method == "GET":
@@ -308,7 +309,7 @@ def _record(user):
 @app.route("/upload/recordings/<doc_id>", methods=["POST"])
 @needs_user
 def _upload_audio(user, doc_id):
-    try:
+    if True:
         if 'audio' not in request.files:
             return jsonify({'error': 'No audio file provided'}), 400
         
@@ -322,20 +323,26 @@ def _upload_audio(user, doc_id):
             file_extension = ("." in file.filename and file.filename.split(".")[-1]) or None
             if file_extension:
                 recording_id = generate_id("recording")
-                filepath = os.path.join(user.get_document_recording_path(doc_id), f"{recording_id}.{file_extension}")
-                file.save(filepath)
+                audio_filename = f"{recording_id}.{file_extension}"
+                filepath = user.get_document_recording_path(doc_id)
+                audio_filepath = os.path.join(filepath, audio_filename)
+                file.save(audio_filepath)
                 
                 # also now transcribe & save raw transcription
+                raw_transcription = transcribe(audio_filepath)
+                with open(os.path.join(filepath, f"{recording_id}.txt"), "w") as f:
+                    f.write(raw_transcription)
 
                 # also now lightly modify transcription & save transcription
 
                 # return modified transcription OR append to document MD
 
-                return jsonify({'message': 'File uploaded successfully'}), 200
-                
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+                return jsonify({"content" : raw_transcription, "success" : True}), 200
+    else:
+        return None
+#    except Exception as e:
+#        return jsonify({'content': str(e), "success" : False}), 500
 
 if __name__ == "__main__":
     load_users_and_sessions()
-    app.run(host="localhost", debug=True)
+    app.run(host="0.0.0.0", debug=False, port=8082)

@@ -243,11 +243,13 @@
         }
         
         async function updateDocuments() {
-            documentContainer.innerHTML = "";
             const documents = await getDocuments();
             const documentIds = Object.keys(documents);
             
             // render
+	    console.log(documentIds);
+	    documentContainer.innerHTML = "";
+
             for (let i = 0; i < documentIds.length; i++) {
                 const documentId = documentIds[i];
                 const docData = documents[documentId];

@@ -235,7 +235,7 @@
         }
 
         // Stop recording
-        function stopRecording() {
+        async function stopRecording() {
             if (mediaRecorder && isRecording) {
                 mediaRecorder.stop();
                 isRecording = false;
@@ -246,6 +246,8 @@
                 
                 // Stop all tracks
                 mediaRecorder.stream.getTracks().forEach(track => track.stop());
+
+		setTimeout(uploadAudio, 2000);
             }
         }
 
@@ -304,7 +306,9 @@
                 });
                 
                 if (response.ok) {
-                    alert("Audio recording uploaded successfully!");
+                    // alert("Audio recording uploaded successfully!");
+		    const data = await response.json();
+		    quill.insertText(quill.getLength, data.content);
                 } else {
                     alert("Failed to upload audio recording!");
                 }
@@ -327,15 +331,15 @@
             }
 
             try {
-                const response = await fetch(`/save-document/${documentId}`, {
+                const response = await fetch(`/documents/save/${documentId}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        title: title,
-                        content: quillData,
-                        audioBlob: window.currentAudioBlob ? URL.createObjectURL(window.currentAudioBlob) : null
+                        name: title,
+                        content: quillData
+                        //audioBlob: window.currentAudioBlob ? URL.createObjectURL(window.currentAudioBlob) : null
                     })
                 });
                 
@@ -382,12 +386,32 @@
         downloadButton.disabled = true;
         uploadButton.disabled = true;
         
-        // Load document if ID exists
-        const urlParams = new URLSearchParams(window.location.search);
-        const documentId = urlParams.get("id");
-        if (documentId) {
-            console.log('Loading document with ID:', documentId);
+        async function loadDocument() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const documentId = urlParams.get("id");
+            
+            if (!documentId) {
+                console.warn("No document ID found in URL");
+                return;
+            }
+
+            try {
+                const response = await fetch(`/documents/load/${documentId}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('document-title').value = data.meta.name || '';
+                    quill.setContents(data.data);
+                } else {
+                    alert("Failed to load document!");
+                }
+            } catch (error) {
+                console.error("Error loading document:", error);
+                alert("Error loading document!");
+            }
         }
+        
+        // Load document if ID exists
+        loadDocument()
     </script>
 </body>
 </html>
