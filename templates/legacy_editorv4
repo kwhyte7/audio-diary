@@ -295,7 +295,7 @@
             }
 
             const formData = new FormData();
-            formData.append('audio', window.currentAudioBlob, `recording-${documentId}.ogx`);
+            formData.append('audio', window.currentAudioBlob, `recording-${documentId}.webm`);
             
             try {
                 const response = await fetch(`/upload/recordings/${documentId}`, {

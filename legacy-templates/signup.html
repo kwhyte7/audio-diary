@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block body %}
+
+<div class="flex column login container">
+	<h1>sign up</h1>
+	<input placeholder="email/username"></input>
+	<input type="password" placeholder="password"></input>
+	<input type="password" placeholder="confirm password"></input>
+	<p></p>
+	<a href="/login">Already have an account? Login.</a>
+	<button onclick="signUp()">Sign up</button>
+</div>
+
+{% endblock %}
+
+{% block script %}
+<script>
+const messageElement = document.querySelector(".flex p");
+async function signUp() {
+	const [email, password, confirmPassword] = Array.from(document.querySelectorAll(".flex input")).map(v => v.value);
+	
+	// check if passwords are same
+	console.log(password, confirmPassword)
+	if (password == confirmPassword) {
+		const response = await fetch("/signup", {
+			method : "POST",
+			headers : {
+				"Content-Type" : "application/json"
+			},
+			body : JSON.stringify({email : email, password : password})
+		});
+
+		const data = await response.json();
+		if (data.success) {
+			// redir
+			window.location.href = "/";
+		}
+		messageElement.textContent = data.message;a	
+	} else {
+		messageElement.textContent = "Your passwords don't match.";
+	}
+
+	// redir to next page if response is nice
+}
+</script>
+{% endblock %}

@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Editor</title>
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+    <link rel="stylesheet" href="https://cdn.quilljs.com/1.3.6/quill.snow.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .main {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            padding: 20px;
+        }
+
+        .title {
+            margin-bottom: 20px;
+        }
+
+        .title input {
+            width: 100%;
+            padding: 12px 16px;
+            font-size: 24px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .title input:focus {
+            border-color: #007bff;
+        }
+
+        .editor-container {
+            display: flex;
+            flex: 1;
+            gap: 20px;
+        }
+
+        .quill-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .quill-editor {
+            flex: 1;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .options {
+            width: 200px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .options button {
+            padding: 12px;
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .options button:hover {
+            background: #e9ecef;
+            transform: translateY(-2px);
+        }
+
+        .options button:active {
+            transform: translateY(0);
+        }
+
+        .options button:nth-child(1) {
+            background: #e3f2fd;
+            border-color: #bbdefb;
+        }
+
+        .options button:nth-child(1):hover {
+            background: #bbdefb;
+        }
+
+        .options button:nth-child(4) {
+            background: #d4edda;
+            border-color: #c3e6cb;
+        }
+
+        .options button:nth-child(4):hover {
+            background: #c3e6cb;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .editor-container {
+                flex-direction: column;
+            }
+            
+            .options {
+                width: 100%;
+                flex-direction: row;
+                justify-content: center;
+            }
+            
+            .options button {
+                flex: 1;
+                max-width: 150px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="main">
+        <div class="title">
+            <input type="text" placeholder="Document title" id="document-title">
+        </div>
+        <div class="editor-container">
+            <div class="quill-wrapper">
+                <div class="quill-editor" id="editor"></div>
+            </div>
+            <div class="options">
+                <button id="listen-btn">🎙️ Listen to voice</button>
+                <button id="upload-btn">📁 Upload audio file</button>
+                <button id="download-btn">💾 Download as .md</button>
+                <button id="save-btn">💾 Save to website</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Quill editor
+        const quillEditor = new Quill('#editor', {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    [{ 'header': [1, 2, 3, false] }],
+                    ['bold', 'italic', 'underline'],
+                    ['link', 'code-block'],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    ['clean']
+                ]
+            }
+        });
+
+        // Set up event listeners
+        document.getElementById('save-btn').addEventListener('click', saveDocument);
+        document.getElementById('listen-btn').addEventListener('click', listenToVoice);
+        document.getElementById('upload-btn').addEventListener('click', uploadAudioFile);
+        document.getElementById('download-btn').addEventListener('click', downloadMd);
+
+        // Load document function
+        async function loadDocument() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const documentId = urlParams.get("id");
+            
+            if (!documentId) {
+                console.warn("No document ID found in URL");
+                return;
+            }
+
+            try {
+                const response = await fetch(`/documents/load/${documentId}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('document-title').value = data.meta.name || '';
+                    quillEditor.setContents(data.data);
+                } else {
+                    alert("Failed to load document!");
+                }
+            } catch (error) {
+                console.error("Error loading document:", error);
+                alert("Error loading document!");
+            }
+        }
+
+        // Save document function
+        async function saveDocument() {
+            const quillData = quillEditor.getContents();
+            const title = document.getElementById('document-title').value;
+            const urlParams = new URLSearchParams(window.location.search);
+            const documentId = urlParams.get("id");
+
+            if (!documentId) {
+                alert("No document ID found!");
+                return;
+            }
+
+            try {
+                const response = await fetch(`/documents/save/${documentId}`, {
+                    method: "POST",
+                    headers: {
+                        "Content-type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        content: quillData,
+                        name: title
+                    })
+                });
+
+                if (response.ok) {
+                    console.log("Document saved successfully");
+                    alert("Document saved!");
+                } else {
+                    alert("Failed to save document!");
+                }
+            } catch (error) {
+                console.error("Error saving document:", error);
+                alert("Error saving document!");
+            }
+        }
+
+        // Placeholder functions
+        function listenToVoice() {
+            alert("Voice recognition would start here");
+        }
+
+        function uploadAudioFile() {
+            alert("Audio file upload would start here");
+        }
+
+        function downloadMd() {
+            alert("Download as Markdown would start here");
+        }
+
+        // Load document on page load
+        loadDocument();
+    </script>
+</body>
+</html>

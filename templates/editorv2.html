@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quill Editor with Audio Recorder</title>
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            padding: 20px 0;
+            margin-bottom: 30px;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            color: #7f8c8d;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        
+        .editor-container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+        
+        #editor {
+            min-height: 300px;
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .toolbar {
+            background: #f8f9fa;
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .toolbar button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .toolbar button:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+        }
+        
+        .toolbar button i {
+            font-size: 18px;
+        }
+        
+        .recording-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .recording-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .recording-content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            width: 90%;
+            max-width: 500px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transform: translateY(20px);
+            transition: transform 0.3s ease;
+        }
+        
+        .recording-overlay.active .recording-content {
+            transform: translateY(0);
+        }
+        
+        .recording-header {
+            margin-bottom: 20px;
+        }
+        
+        .recording-header h2 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .recording-status {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .recording-indicator {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #e74c3c;
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.3; }
+            100% { opacity: 1; }
+        }
+        
+        .recording-time {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        .recording-controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 25px 0;
+        }
+        
+        .recording-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 24px;
+        }
+        
+        .record-btn {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .record-btn:hover {
+            background: #c0392b;
+            transform: scale(1.1);
+        }
+        
+        .stop-btn {
+            background: #3498db;
+            color: white;
+        }
+        
+        .stop-btn:hover {
+            background: #2980b9;
+            transform: scale(1.1);
+        }
+        
+        .play-btn {
+            background: #2ecc71;
+            color: white;
+        }
+        
+        .play-btn:hover {
+            background: #27ae60;
+            transform: scale(1.1);
+        }
+        
+        .audio-preview {
+            margin: 20px 0;
+        }
+        
+        .audio-preview audio {
+            width: 100%;
+            margin-top: 10px;
+        }
+        
+        .upload-section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            text-align: center;
+        }
+        
+        .upload-section h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+        }
+        
+        .file-upload {
+            position: relative;
+            display: inline-block;
+            margin: 10px 0;
+        }
+        
+        .file-upload input[type="file"] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        
+        .file-upload-label {
+            background: #3498db;
+            color: white;
+            padding: 12px 25px;
+            border-radius: 5px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .file-upload-label:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+        }
+        
+        .file-name {
+            margin-top: 10px;
+            font-size: 0.9rem;
+            color: #7f8c8d;
+        }
+        
+        .status-message {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: 500;
+        }
+        
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .instructions {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            border-radius: 0 5px 5px 0;
+            margin: 20px 0;
+        }
+        
+        .instructions h3 {
+            margin-bottom: 10px;
+            color: #2196f3;
+        }
+        
+        .instructions ul {
+            padding-left: 20px;
+        }
+        
+        .instructions li {
+            margin-bottom: 8px;
+        }
+        
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+        
+        @media (max-width: 768px) {
+            .toolbar {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .recording-controls {
+                flex-wrap: wrap;
+            }
+            
+            .recording-btn {
+                width: 50px;
+                height: 50px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-microphone-alt"></i> Audio-Enhanced Quill Editor</h1>
+            <p class="subtitle">Record audio directly in your editor and upload system audio files to enhance your content</p>
+        </header>
+        
+        <div class="editor-container">
+            <div class="toolbar">
+                <button id="recordBtn" title="Record Audio">
+                    <i class="fas fa-microphone"></i> Record
+                </button>
+                <button id="uploadBtn" title="Upload Audio">
+                    <i class="fas fa-upload"></i> Upload
+                </button>
+                <button id="saveBtn" title="Save Content">
+                    <i class="fas fa-save"></i> Save
+                </button>
+            </div>
+            <div id="editor"></div>
+        </div>
+        
+        <div class="instructions">
+            <h3><i class="fas fa-info-circle"></i> How to Use</h3>
+            <ul>
+                <li>Click <strong>Record</strong> to start recording audio directly in your editor</li>
+                <li>Click <strong>Upload</strong> to add audio files from your device</li>
+                <li>Use the editor toolbar to format your text and manage audio content</li>
+                <li>Save your content to preserve all audio elements</li>
+            </ul>
+        </div>
+        
+        <div class="upload-section">
+            <h3><i class="fas fa-file-audio"></i> Upload Audio Files</h3>
+            <div class="file-upload">
+                <input type="file" id="audioFile" accept="audio/*">
+                <label for="audioFile" class="file-upload-label">
+                    <i class="fas fa-folder-open"></i> Choose Audio File
+                </label>
+            </div>
+            <div class="file-name" id="fileName">No file chosen</div>
+            <div class="status-message" id="statusMessage"></div>
+        </div>
+        
+        <div class="recording-overlay" id="recordingOverlay">
+            <div class="recording-content">
+                <div class="recording-header">
+                    <h2>Audio Recording</h2>
+                    <div class="recording-status">
+                        <div class="recording-indicator"></div>
+                        <div class="recording-time" id="recordingTime">00:00</div>
+                    </div>
+                </div>
+                
+                <div class="recording-controls">
+                    <button class="recording-btn record-btn" id="startRecording">
+                        <i class="fas fa-play"></i>
+                    </button>
+                    <button class="recording-btn stop-btn" id="stopRecording">
+                        <i class="fas fa-stop"></i>
+                    </button>
+                    <button class="recording-btn play-btn" id="playRecording">
+                        <i class="fas fa-play-circle"></i>
+                    </button>
+                </div>
+                
+                <div class="audio-preview">
+                    <audio id="audioPreview" controls style="width: 100%;"></audio>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>Audio-Enhanced Quill Editor &copy; 2023 | Record and upload audio to enhance your content</p>
+        </footer>
+    </div>
+
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+    <script>
+        // Initialize Quill editor
+        const quill = new Quill('#editor', {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    ['bold', 'italic', 'underline'],
+                    ['link', 'blockquote', 'code-block'],
+                    ['clean'],
+                    ['image']
+                ]
+            }
+        });
+        
+        // Recording functionality
+        const recordingOverlay = document.getElementById('recordingOverlay');
+        const startRecordingBtn = document.getElementById('startRecording');
+        const stopRecordingBtn = document.getElementById('stopRecording');
+        const playRecordingBtn = document.getElementById('playRecording');
+        const recordingTime = document.getElementById('recordingTime');
+        const audioPreview = document.getElementById('audioPreview');
+        const recordBtn = document.getElementById('recordBtn');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const audioFile = document.getElementById('audioFile');
+        const fileName = document.getElementById('fileName');
+        const statusMessage = document.getElementById('statusMessage');
+        
+        let mediaRecorder;
+        let audioChunks = [];
+        let recordingInterval;
+        let seconds = 0;
+        
+        // Open recording overlay
+        recordBtn.addEventListener('click', () => {
+            recordingOverlay.classList.add('active');
+            seconds = 0;
+            recordingTime.textContent = '00:00';
+        });
+        
+        // Start recording
+        startRecordingBtn.addEventListener('click', async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+                
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    audioPreview.src = audioUrl;
+                    
+                    // Add audio to editor (simulated)
+                    const audioEmbed = document.createElement('div');
+                    audioEmbed.innerHTML = `
+                        <div style="border: 1px solid #ddd; padding: 10px; margin: 10px 0; border-radius: 5px;">
+                            <audio controls style="width: 100%;">
+                                <source src="${audioUrl}" type="audio/wav">
+                                Your browser does not support the audio element.
+                            </audio>
+                        </div>
+                    `;
+                    quill.insertEmbed(quill.getLength(), 'embed', audioEmbed.innerHTML);
+                    quill.insertText(quill.getLength(), '\n');
+                };
+                
+                mediaRecorder.start();
+                startRecordingBtn.disabled = true;
+                stopRecordingBtn.disabled = false;
+                playRecordingBtn.disabled = true;
+                
+                // Update recording time
+                recordingInterval = setInterval(() => {
+                    seconds++;
+                    const minutes = Math.floor(seconds / 60);
+                    const secs = seconds % 60;
+                    recordingTime.textContent = `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                }, 1000);
+                
+            } catch (error) {
+                console.error('Error accessing microphone:', error);
+                showMessage('Error accessing microphone. Please check permissions.', 'error');
+            }
+        });
+        
+        // Stop recording
+        stopRecordingBtn.addEventListener('click', () => {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                startRecordingBtn.disabled = false;
+                stopRecordingBtn.disabled = true;
+                playRecordingBtn.disabled = false;
+                clearInterval(recordingInterval);
+            }
+        });
+        
+        // Play recording
+        playRecordingBtn.addEventListener('click', () => {
+            if (audioPreview.src) {
+                audioPreview.play();
+            }
+        });
+        
+        // Upload functionality
+        uploadBtn.addEventListener('click', () => {
+            audioFile.click();
+        });
+        
+        audioFile.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                fileName.textContent = file.name;
+                const audioUrl = URL.createObjectURL(file);
+                audioPreview.src = audioUrl;
+                
+                // Add audio to editor (simulated)
+                const audioEmbed = document.createElement('div');
+                audioEmbed.innerHTML = `
+                    <div style="border: 1px solid #ddd; padding: 10px; margin: 10px 0; border-radius: 5px;">
+                        <audio controls style="width: 100%;">
+                            <source src="${audioUrl}" type="${file.type}">
+                            Your browser does not support the audio element.
+                        </audio>
+                    </div>
+                `;
+                quill.insertEmbed(quill.getLength(), 'embed', audioEmbed.innerHTML);
+                quill.insertText(quill.getLength(), '\n');
+                
+                showMessage('Audio file uploaded successfully!', 'success');
+            }
+        });
+        
+        // Save functionality
+        const saveBtn = document.getElementById('saveBtn');
+        saveBtn.addEventListener('click', () => {
+            const content = quill.getText();
+            if (content.trim()) {
+                showMessage('Content saved successfully!', 'success');
+            } else {
+                showMessage('Please add some content before saving.', 'error');
+            }
+        });
+        
+        // Show status message
+        function showMessage(message, type) {
+            statusMessage.textContent = message;
+            statusMessage.className = 'status-message status-' + type;
+            setTimeout(() => {
+                statusMessage.textContent = '';
+                statusMessage.className = 'status-message';
+            }, 3000);
+        }
+        
+        // Close overlay when clicking outside
+        recordingOverlay.addEventListener('click', (event) => {
+            if (event.target === recordingOverlay) {
+                recordingOverlay.classList.remove('active');
+                if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                    mediaRecorder.stop();
+                    mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                    startRecordingBtn.disabled = false;
+                    stopRecordingBtn.disabled = true;
+                    clearInterval(recordingInterval);
+                }
+            }
+        });
+    </script>
+</body>
+</html>

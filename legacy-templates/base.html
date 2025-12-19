@@ -1,0 +1,13 @@
+<html>
+	<head>
+		<link rel="stylesheet" href="{{url_for('static', filename='styles.css')}}">
+	</head>
+	{% block head %}{% endblock %}
+	<body>
+		<!-- Add navbar here.. -->
+		{% block body %}{% endblock %}
+	</body>
+	
+	{% block script %}{% endblock %}
+	
+</html>

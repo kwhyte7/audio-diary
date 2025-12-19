@@ -129,6 +129,15 @@ class User():
         os.makedirs(path, exist_ok=True)
         return path
 
+    def delete_document_path(self, document_id):
+        shutil.rmtree(self.get_document_path(document_id))
+        return
+
+    def get_document_recording_path(self, document_id):
+        path = os.path.join(self.get_docuent_path(document_id), "recordings")
+        os.makedirs(path, exist_ok=True)
+        return path
+
     def get_document_ids(self):
         return [os.path.basename(os.path.dirname(path)) for path in glob.glob(os.path.join(self.get_folder_path(), "*/"))]
     
@@ -263,11 +272,12 @@ def _documents_new_doc_name(user):
 def _documents_load_doc_id(user, doc_id):
     return user.load_document(doc_id)
 
-@app.route("/documents/delete/<doc_id>")
+@app.route("/documents/delete/<doc_id>", methods = ["DELETE"])
 @needs_user
 def _document_delete_doc_id(user, doc_id):
     # write user.delete
-    return
+    user.delete_document_path(doc_id)
+    return "success"
 
 @app.route("/documents/save/<doc_id>", methods=["POST"])
 @needs_user
@@ -289,6 +299,42 @@ def _documents_edit(user):
     # render_template editor
     # on load, quill load doc ID or something
     return render_template("editor.html")
+
+@app.route("/record", methods=["GET", "POST"])
+@needs_user
+def _record(user):
+    return render_template("client-side-recorder.html")
+
+@app.route("/upload/recordings/<doc_id>", methods=["POST"])
+@needs_user
+def _upload_audio(user, doc_id):
+    try:
+        if 'audio' not in request.files:
+            return jsonify({'error': 'No audio file provided'}), 400
+        
+        file = request.files['audio']
+        
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        if file:
+            #filename = secure_filename(file.filename)
+            file_extension = ("." in file.filename and file.filename.split(".")[-1]) or None
+            if file_extension:
+                recording_id = generate_id("recording")
+                filepath = os.path.join(user.get_document_recording_path(doc_id), f"{recording_id}.{file_extension}")
+                file.save(filepath)
+                
+                # also now transcribe & save raw transcription
+
+                # also now lightly modify transcription & save transcription
+
+                # return modified transcription OR append to document MD
+
+                return jsonify({'message': 'File uploaded successfully'}), 200
+                
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == "__main__":
     load_users_and_sessions()

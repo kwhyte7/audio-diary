@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block head %}
+<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+<link rel="stylesheet" href="https://cdn.quilljs.com/1.3.6/quill.snow.css">
+{% endblock %}
+
+{% block body %}
+<div class="main flex column">
+<div class="title fill-x">
+	<input></input>
+</div>
+<div class="editor-container flex fill-x">
+	<div class="quill-wrapper display-block">
+	<div class="quill-editor fill-flex">
+	</div></div>
+	<div class="options flex column fill-flex">
+		<button>Listen to voice</button>
+		<button>Upload audio file</button>
+		<button>Download as .md</button>
+		<button onclick="saveDocument()">Save to website</button>
+	</div>
+</div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+const urlParams = new URLSearchParams(window.location.search);
+const documentId = urlParams.get("id");
+const quillEditor = new Quill(".quill-editor", {theme : "snow"});
+const titleInputElement = document.querySelector(".title input");
+
+async function loadDocument() {
+	const response = await fetch(`/documents/load/${documentId}`);
+
+	if (response.ok) {
+		const data = await response.json();
+		titleInputElement.value = data.meta.name;
+		quillEditor.setContents(data.data);
+	} else {
+		alert("Response not ok on load!");
+	}
+}
+
+function listenToVoice() {
+
+}
+
+function uploadAudioFile() {
+
+}
+
+function downloadMd() {
+
+}
+
+async function saveDocument() {
+	const quillData = quillEditor.getContents();
+
+	const response = await fetch(`/documents/save/${documentId}`, {
+		method : "POST",
+		headers : {
+			"Content-type" : "application/json"
+		},
+		body : JSON.stringify({content : quillData, name : titleInputElement.value})
+	});
+
+	if (response.ok) {
+		console.log("Saved document")
+	} else {
+		alert("Response not ok on save!")
+	};
+
+
+}
+
+loadDocument()
+</script>
+{% endblock %}
