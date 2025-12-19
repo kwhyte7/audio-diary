@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document Editor</title>
     <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.quilljs.com/1.3.6/quill.snow.css">
     <style>
         * {
@@ -104,12 +103,6 @@
             content: "●";
             animation: pulse 1s infinite;
         }
-	#go-home {
-	    background-color : #a04060
-	}
-	#go-home:hover {
-	    background-color : #602040
-	}
         @keyframes pulse {
             0% { opacity: 1; }
             50% { opacity: 0.5; }
@@ -137,17 +130,11 @@
         </div>
         
         <div class="recording-controls">
-		<button id="start-recording" title="Start Recording"><i class="fas fa-microphone"></i></button>
-		<button id="stop-recording" title="Stop Recording"><i class="fas fa-stop"></i></button>
-		<button id="reset-recording" title="Reset"><i class="fas fa-repeat"></i></button>
-	    <button id="download-recording" title="Download"><i class="fas fa-download"></i></button>
-	    <button id="upload-recording" title="Upload Audio"><i class="fas fa-upload"></i></button>
-	    <button id="enhance-selection" title="Enhance selection"><i class="fa fa-star"></i></button>
-	    <button id="go-home" onclick="window.location.href = '/'" title="Go Home"><i class="fas fa-home"></i></button>
-
-
-	    <form id="upload-form" enctype="multipart/form-data"><input type="file" id="file-input" name="file">
-	</form>
+            <button id="start-recording">Start Recording</button>
+            <button id="stop-recording">Stop Recording</button>
+            <button id="reset-recording">Reset</button>
+            <button id="download-recording">Download Audio</button>
+            <button id="upload-recording">Upload Audio</button>
         </div>
         
         <div class="recording-status">
@@ -199,7 +186,6 @@
         const saveButton = document.getElementById('save-document');
         const downloadMdButton = document.getElementById('download-md');
         const titleInput = document.getElementById('document-title');
-	const fileInput = document.getElementById("file-input");
 
         // Update recording timer
         function updateTimer() {
@@ -295,21 +281,6 @@
             }, 100);
         }
 
-	async function uploadFileAsAudio() {
-		// window.currentAudioBlob
-		
-		fileInput.click()
-	}
-	
-	fileInput.addEventListener("change", (e) => {
-		if (e.target.files.length > 0) {
-			console.log(e.target.files[0].type);
-			window.currentFile = e.target.files[0]
-			window.currentAudioBlob = e.target.files[0];
-			uploadAudio();
-		}
-	});
-
         // Upload audio
         async function uploadAudio() {
             if (!window.currentAudioBlob) {
@@ -374,8 +345,7 @@
                 });
                 
                 if (response.ok) {
-                    saveButton.textContent = "Document saved successfully!";
-		    setTimeout(() => {saveButton.textContent = "Save Document"}, 2000)
+                    alert("Document saved successfully!");
                 } else {
                     alert("Failed to save document!");
                 }
@@ -408,14 +378,14 @@
         stopButton.addEventListener('click', stopRecording);
         resetButton.addEventListener('click', resetRecording);
         downloadButton.addEventListener('click', downloadAudio);
-        uploadButton.addEventListener('click', uploadFileAsAudio);
+        uploadButton.addEventListener('click', uploadAudio);
         saveButton.addEventListener('click', saveDocument);
         downloadMdButton.addEventListener('click', downloadAsMd);
 
         // Initialize button states
         stopButton.disabled = true;
         downloadButton.disabled = true;
-        uploadButton.disabled = false;
+        uploadButton.disabled = true;
         
         async function loadDocument() {
             const urlParams = new URLSearchParams(window.location.search);

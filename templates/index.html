@@ -148,7 +148,7 @@
 
         .delete-btn {
             background: #dc3545;
-            color: white;
+            color: red;
             align-self: flex-end;
             margin-left: 0.5rem;
         }
@@ -249,6 +249,8 @@
             // render
 	    console.log(documentIds);
 	    documentContainer.innerHTML = "";
+
+	    documentIds.sort((b, a) => {return documents[a].last_modified - documents[b].last_modified})
 
             for (let i = 0; i < documentIds.length; i++) {
                 const documentId = documentIds[i];
