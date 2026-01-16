@@ -68,6 +68,8 @@
 
         .quill-container {
             flex: 1;
+	    display: flex;
+	    /*flex-flow: column;*/
             border: 1px solid #ccc;
             border-radius: 4px;
             overflow: hidden;
@@ -77,8 +79,15 @@
         }
 
 	.ql-editor {
-	    overflow: auto;
+		overflow: auto;
+	    flex: 1;
 	}
+
+	#editor {flex: 1;}
+	.ql-toolbar {flex: 0}
+
+	/*.ql-toolbar {position : sticky; top: 0; z-index: 0; height: 4rem}*/
+
         .options-container {
             display: flex;
             gap: 10px;

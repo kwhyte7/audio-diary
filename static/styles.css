@@ -25,11 +25,13 @@
   flex: 1;
 }
 
-.quill-wrapper {
+
+.quill-container {
+	max-height: 100%;
   width: calc(100% - 10rem);
   height: 100%;
   box-sizing: border-box; /* Prevents overflow from padding */
-}
+} 
 
 .main {
   flex: 1;
