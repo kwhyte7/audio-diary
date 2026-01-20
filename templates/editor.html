@@ -55,7 +55,7 @@
             cursor: not-allowed;
         }
         .recording-status {
-            margin: 10px 0;
+            /*margin: 10px 0;*/
             padding: 10px;
             background-color: #f8f9fa;
             border-radius: 4px;
@@ -143,19 +143,18 @@
 		<button id="reset-recording" title="Reset"><i class="fas fa-repeat"></i></button>
 	    <button id="download-recording" title="Download"><i class="fas fa-download"></i></button>
 	    <button id="upload-recording" title="Upload Audio"><i class="fas fa-upload"></i></button>
-	    <button id="enhance-selection" title="Enhance selection"><i class="fa fa-star"></i></button>
+	    <button id="enhance-selection" title="Resend Local Audio"><i class="fa fa-star"></i></button>
 	    <button id="go-home" onclick="window.location.href = '/'" title="Go Home"><i class="fas fa-home"></i></button>
 
 
 	    <form id="upload-form" enctype="multipart/form-data"><input type="file" id="file-input" name="file">
 	</form>
-        </div>
-        
         <div class="recording-status">
             <span class="recording-time">Recording time: <span id="recording-timer">00:00</span></span>
             <div class="recording-indicator" id="recording-indicator" style="display: none;">
                 <span>Recording in progress...</span>
             </div>
+        </div>
         </div>
         
         <div class="quill-container">
@@ -204,6 +203,7 @@
         const uploadButton = document.getElementById('upload-recording');
         const recordingTimerElement = document.getElementById('recording-timer');
         const recordingIndicator = document.getElementById('recording-indicator');
+	const enhanceButton = document.getElementById("enhance-selection")
         const saveButton = document.getElementById('save-document');
         const downloadMdButton = document.getElementById('download-md');
         const titleInput = document.getElementById('document-title');
@@ -419,6 +419,7 @@
         uploadButton.addEventListener('click', uploadFileAsAudio);
         saveButton.addEventListener('click', saveDocument);
         downloadMdButton.addEventListener('click', downloadAsMd);
+	enhanceButton.addEventListener("click", uploadAudio);
 
         // Initialize button states
         stopButton.disabled = true;
