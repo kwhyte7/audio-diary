@@ -1,6 +1,7 @@
 import pytest
 
 import app
+import db
 
 
 @pytest.fixture
@@ -26,38 +27,20 @@ def test_signup_rejects_invalid_email(client):
     assert "valid email" in data["message"]
 
 
-def test_signup_accepts_valid_email_and_creates_session(client, monkeypatch):
-    created = {}
-
-    monkeypatch.setattr(app.db, "get_user_by_email", lambda email: None)
-
-    def fake_create_user(uid, email, password_hash):
-        created["user_id"] = uid
-        created["email"] = email
-
-    def fake_create_session(session_id, uid):
-        created["session_id"] = session_id
-
-    monkeypatch.setattr(app.db, "create_user", fake_create_user)
-    monkeypatch.setattr(app.db, "create_session", fake_create_session)
-
+def test_signup_accepts_valid_email_and_creates_session(client, db_session):
     res = client.post(
         "/signup", json={"email": "me@example.com", "password": "password123"}
     )
     data = res.get_json()
 
     assert data["success"] is True
-    assert created["email"] == "me@example.com"
-    assert "user_id" in created
-    assert "session_id" in created
+    user = db.get_user_by_email("me@example.com")
+    assert user is not None
+    assert user["email"] == "me@example.com"
 
 
-def test_signup_rejects_existing_email(client, monkeypatch):
-    monkeypatch.setattr(
-        app.db,
-        "get_user_by_email",
-        lambda email: {"id": "u1", "email": email, "password_hash": "x"},
-    )
+def test_signup_rejects_existing_email(client, db_session):
+    db.create_user("u1", "me@example.com", "hash")
 
     res = client.post(
         "/signup", json={"email": "me@example.com", "password": "password123"}
@@ -68,25 +51,22 @@ def test_signup_rejects_existing_email(client, monkeypatch):
     assert "already in use" in data["message"]
 
 
-def test_save_document_passes_content_to_db(client, monkeypatch):
+def test_save_document_end_to_end(client, db_session, monkeypatch):
+    """The whole Flask -> db -> JSON column path must work end to end."""
+    db.create_user("u1", "me@example.com", "hash")
+    db.create_document("u1", "doc1", "My doc")
+
     monkeypatch.setattr(
         app, "find_user_from_session", lambda: {"id": "u1", "email": "me@example.com"}
     )
 
-    captured = {}
-
-    def fake_save(uid, doc_id, content, name):
-        captured.update(uid=uid, doc_id=doc_id, content=content, name=name)
-
-    monkeypatch.setattr(app.db, "save_document", fake_save)
-
+    content = {"ops": [{"insert": "hello"}]}
     res = client.post(
         "/documents/save/doc1",
-        json={"content": {"ops": [{"insert": "hi"}]}, "name": "My doc"},
+        json={"content": content, "name": "Renamed"},
     )
 
     assert res.status_code == 200
-    assert captured["uid"] == "u1"
-    assert captured["doc_id"] == "doc1"
-    assert captured["content"] == {"ops": [{"insert": "hi"}]}
-    assert captured["name"] == "My doc"
+    loaded = db.load_document("u1", "doc1")
+    assert loaded["data"] == content
+    assert loaded["meta"]["name"] == "Renamed"

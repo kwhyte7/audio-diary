@@ -3,5 +3,6 @@
 flask==3.1.2
 openai-whisper==20250625
 psycopg[binary]==3.3.9
+sqlalchemy==2.1.9
 python-dotenv==1.2.4
 pyyaml==6.0.3

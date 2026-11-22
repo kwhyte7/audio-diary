@@ -1,17 +1,25 @@
-"""PostgreSQL storage layer.
+"""PostgreSQL storage layer (SQLAlchemy).
 
-This replaces the old JSON-file storage. Everything except raw audio files
-now lives in Postgres: users, sessions and documents. Audio recordings stay
-on the filesystem because they're binary blobs; their transcriptions are
-written next to the audio files and the document text is stored in Postgres.
+Everything except raw audio files lives in Postgres: users, sessions and
+documents. Audio recordings stay on the filesystem because they're binary
+blobs; their transcriptions are written next to the audio files.
 """
 
 import os
 import time
 
-import psycopg
-from psycopg.rows import dict_row
-from psycopg.types.json import Jsonb
+from sqlalchemy import (
+    JSON,
+    Column,
+    DateTime,
+    Double,
+    ForeignKey,
+    String,
+    create_engine,
+    func,
+)
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
@@ -19,8 +27,52 @@ DATABASE_URL = os.getenv(
 )
 
 
-def get_conn():
-    return psycopg.connect(DATABASE_URL, row_factory=dict_row)
+def _sqlalchemy_url(url):
+    """Use the psycopg3 driver for plain postgresql:// URLs.
+
+    SQLAlchemy defaults `postgresql://` to psycopg2, but we ship psycopg3.
+    """
+    if url.startswith("postgresql://"):
+        return "postgresql+psycopg://" + url[len("postgresql://"):]
+    return url
+
+
+engine = create_engine(_sqlalchemy_url(DATABASE_URL), pool_pre_ping=True, future=True)
+SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+Base = declarative_base()
+
+
+# JSONB on Postgres, generic JSON on SQLite (used by the tests).
+ContentType = JSON().with_variant(JSONB(), "postgresql")
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(String, primary_key=True)
+    email = Column(String, unique=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class SessionRecord(Base):
+    __tablename__ = "sessions"
+
+    id = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Document(Base):
+    __tablename__ = "documents"
+
+    id = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String, nullable=False, default="")
+    description = Column(String, nullable=False, default="")
+    content = Column(ContentType, nullable=False, default=dict)
+    creation = Column(Double, nullable=False)
+    last_modified = Column(Double, nullable=False)
 
 
 def init_db(retries=30, delay=2):
@@ -31,54 +83,17 @@ def init_db(retries=30, delay=2):
     """
     for attempt in range(1, retries + 1):
         try:
-            with get_conn() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        """
-                        CREATE TABLE IF NOT EXISTS users (
-                            id TEXT PRIMARY KEY,
-                            email TEXT UNIQUE NOT NULL,
-                            password_hash TEXT NOT NULL,
-                            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-                        )
-                        """
-                    )
-                    cur.execute(
-                        """
-                        CREATE TABLE IF NOT EXISTS sessions (
-                            id TEXT PRIMARY KEY,
-                            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-                        )
-                        """
-                    )
-                    cur.execute(
-                        """
-                        CREATE TABLE IF NOT EXISTS documents (
-                            id TEXT PRIMARY KEY,
-                            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                            name TEXT NOT NULL DEFAULT '',
-                            description TEXT NOT NULL DEFAULT '',
-                            content JSONB NOT NULL DEFAULT '{}'::jsonb,
-                            creation DOUBLE PRECISION NOT NULL,
-                            last_modified DOUBLE PRECISION NOT NULL
-                        )
-                        """
-                    )
-                    cur.execute(
-                        "CREATE INDEX IF NOT EXISTS idx_documents_user_id "
-                        "ON documents(user_id)"
-                    )
-                    cur.execute(
-                        "CREATE INDEX IF NOT EXISTS idx_sessions_user_id "
-                        "ON sessions(user_id)"
-                    )
+            Base.metadata.create_all(engine)
             return
-        except psycopg.OperationalError as exc:
+        except Exception as exc:  # noqa: BLE001 - retry any connection error
             print(f"[db] waiting for postgres ({attempt}/{retries}): {exc}")
             time.sleep(delay)
 
     raise RuntimeError("could not connect to postgres")
+
+
+def _user_dict(user):
+    return {"id": user.id, "email": user.email, "password_hash": user.password_hash}
 
 
 # --------------------------------------------------------------------------
@@ -87,26 +102,21 @@ def init_db(retries=30, delay=2):
 
 
 def create_user(user_id, email, password_hash):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO users (id, email, password_hash) VALUES (%s, %s, %s)",
-                (user_id, email, password_hash),
-            )
+    with SessionLocal() as session:
+        session.add(User(id=user_id, email=email, password_hash=password_hash))
+        session.commit()
 
 
 def get_user_by_email(email):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT * FROM users WHERE email = %s", (email,))
-            return cur.fetchone()
+    with SessionLocal() as session:
+        user = session.query(User).filter(User.email == email).first()
+        return _user_dict(user) if user else None
 
 
 def get_user_by_id(user_id):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT * FROM users WHERE id = %s", (user_id,))
-            return cur.fetchone()
+    with SessionLocal() as session:
+        user = session.get(User, user_id)
+        return _user_dict(user) if user else None
 
 
 # --------------------------------------------------------------------------
@@ -115,25 +125,23 @@ def get_user_by_id(user_id):
 
 
 def create_session(session_id, user_id):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO sessions (id, user_id) VALUES (%s, %s)",
-                (session_id, user_id),
-            )
+    with SessionLocal() as session:
+        session.add(SessionRecord(id=session_id, user_id=user_id))
+        session.commit()
 
 
 def get_session(session_id):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT * FROM sessions WHERE id = %s", (session_id,))
-            return cur.fetchone()
+    with SessionLocal() as session:
+        record = session.get(SessionRecord, session_id)
+        return {"id": record.id, "user_id": record.user_id} if record else None
 
 
 def delete_session(session_id):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("DELETE FROM sessions WHERE id = %s", (session_id,))
+    with SessionLocal() as session:
+        record = session.get(SessionRecord, session_id)
+        if record:
+            session.delete(record)
+            session.commit()
 
 
 # --------------------------------------------------------------------------
@@ -143,89 +151,79 @@ def delete_session(session_id):
 
 def create_document(user_id, document_id, name):
     now = time.time()
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO documents
-                    (id, user_id, name, description, content, creation, last_modified)
-                VALUES (%s, %s, %s, '', '{}'::jsonb, %s, %s)
-                """,
-                (document_id, user_id, name, now, now),
+    with SessionLocal() as session:
+        session.add(
+            Document(
+                id=document_id,
+                user_id=user_id,
+                name=name,
+                description="",
+                content={},
+                creation=now,
+                last_modified=now,
             )
+        )
+        session.commit()
 
 
 def get_documents(user_id):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT id, name, description, creation, last_modified
-                FROM documents
-                WHERE user_id = %s
-                """,
-                (user_id,),
-            )
-            rows = cur.fetchall()
-
-    return {
-        row["id"]: {
-            "name": row["name"],
-            "description": row["description"],
-            "creation": row["creation"],
-            "last_modified": row["last_modified"],
+    with SessionLocal() as session:
+        docs = session.query(Document).filter(Document.user_id == user_id).all()
+        return {
+            doc.id: {
+                "name": doc.name,
+                "description": doc.description,
+                "creation": doc.creation,
+                "last_modified": doc.last_modified,
+            }
+            for doc in docs
         }
-        for row in rows
-    }
 
 
 def load_document(user_id, document_id):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT name, description, content, creation, last_modified
-                FROM documents
-                WHERE id = %s AND user_id = %s
-                """,
-                (document_id, user_id),
-            )
-            row = cur.fetchone()
-
-    if row is None:
-        return None
-
-    return {
-        "meta": {
-            "name": row["name"],
-            "description": row["description"],
-            "creation": row["creation"],
-            "last_modified": row["last_modified"],
-        },
-        "data": row["content"],
-    }
+    with SessionLocal() as session:
+        doc = (
+            session.query(Document)
+            .filter(Document.id == document_id, Document.user_id == user_id)
+            .first()
+        )
+        if doc is None:
+            return None
+        return {
+            "meta": {
+                "name": doc.name,
+                "description": doc.description,
+                "creation": doc.creation,
+                "last_modified": doc.last_modified,
+            },
+            "data": doc.content,
+        }
 
 
 def save_document(user_id, document_id, content, name=""):
     now = time.time()
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                UPDATE documents
-                SET content = %s,
-                    name = CASE WHEN %s = '' THEN name ELSE %s END,
-                    last_modified = %s
-                WHERE id = %s AND user_id = %s
-                """,
-                (Jsonb(content), name, name, now, document_id, user_id),
-            )
+    with SessionLocal() as session:
+        doc = (
+            session.query(Document)
+            .filter(Document.id == document_id, Document.user_id == user_id)
+            .first()
+        )
+        if doc is None:
+            return
+        doc.content = content
+        if name:
+            doc.name = name
+        doc.last_modified = now
+        session.commit()
 
 
 def delete_document(user_id, document_id):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "DELETE FROM documents WHERE id = %s AND user_id = %s",
-                (document_id, user_id),
-            )
+    with SessionLocal() as session:
+        doc = (
+            session.query(Document)
+            .filter(Document.id == document_id, Document.user_id == user_id)
+            .first()
+        )
+        if doc:
+            session.delete(doc)
+            session.commit()
