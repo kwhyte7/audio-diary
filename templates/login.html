@@ -1,38 +1,71 @@
 {% extends "base.html" %}
+{% block title %}Log in · Audio Diary{% endblock %}
+
 {% block body %}
+<div class="auth-page">
+  <form class="auth-card" onsubmit="login(); return false;">
+    <h1>Welcome back</h1>
+    <p class="auth-subtitle">Log in to keep dictating your documents.</p>
 
-<div class="flex column login container">
-	<h1>login</h1>
-	<input placeholder="email/username"></input>
-	<input type="password" placeholder="password"></input>
-	<p></p>
-	<a href="/signup">Don't have an account? Sign up here.</a>
-	<button onclick="login()">login</button>
+    <label for="email">Email</label>
+    <input id="email" type="email" placeholder="you@example.com" autocomplete="email" required autofocus>
+
+    <label for="password">Password</label>
+    <input id="password" type="password" placeholder="Your password" autocomplete="current-password" required>
+
+    <p class="auth-message" id="message" aria-live="polite"></p>
+
+    <button type="submit" id="submit">Log in</button>
+    <a class="auth-link" href="/signup">Don't have an account? Sign up</a>
+  </form>
 </div>
-
 {% endblock %}
 
 {% block script %}
 <script>
-const messageElement = document.querySelector(".flex p");
+const messageElement = document.getElementById("message");
+const submitButton = document.getElementById("submit");
+
 async function login() {
-	const [email, password] = Array.from(document.querySelectorAll(".flex input")).map(v => v.value);
-	
-	// redir to next page if response is nice
-	const response = await fetch("/login", {
-		method : "POST",
-		headers : {"Content-type" : "application/json"},
-		body : JSON.stringify({email : email, password : password})
-	});
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
 
-	const data = await response.json();
-	
-	if (data.success) {
-		window.location.href = "/";
-	}
-	messageElement.textContent = data.message
+  messageElement.className = "auth-message";
+  messageElement.textContent = "";
 
+  if (!email || !password) {
+    messageElement.className = "auth-message error";
+    messageElement.textContent = "Please fill in both fields.";
+    return;
+  }
 
+  submitButton.disabled = true;
+  submitButton.textContent = "Logging in...";
+
+  try {
+    const response = await fetch("/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      messageElement.className = "auth-message success";
+      messageElement.textContent = data.message;
+      window.location.href = "/";
+    } else {
+      messageElement.className = "auth-message error";
+      messageElement.textContent = data.message;
+    }
+  } catch (error) {
+    messageElement.className = "auth-message error";
+    messageElement.textContent = "Something went wrong. Please try again.";
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = "Log in";
+  }
 }
 </script>
 {% endblock %}

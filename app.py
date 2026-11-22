@@ -1,26 +1,27 @@
 #!/usr/bin/env python3
 
-import json
-import time
-import random
-import glob
 import os
+import random
 import shutil
+import time
 from functools import wraps
-from transcribe import transcribe
-from flask import Flask, session, jsonify, render_template, redirect, url_for, request
-from werkzeug.security import generate_password_hash, check_password_hash
-from dotenv import load_dotenv
 
-load_dotenv()
+from flask import (
+    Flask,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
+from werkzeug.security import check_password_hash, generate_password_hash
+
+import db
+from transcribe import transcribe
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "somesecretkey")
-
-users = {}
-sessions = {}
-data = {}
-documents = {}
 
 
 def generate_id(name_of=""):
@@ -32,60 +33,23 @@ def generate_id(name_of=""):
     )
 
 
-def create_session(user):
-    new_session = {"id": generate_id("session"), "username": user.data["email"]}
-
-    user.data["active_sessions"].append(new_session["id"])
-    sessions[new_session["id"]] = new_session
-    return new_session
-
-
 def find_user_from_session():
-    # see if session cookie in sessions (as id)
-    cookie = session.get("cookie")
+    """Return the logged-in user row, or None."""
+    session_id = session.get("cookie")
+    if not session_id:
+        return None
 
-    if cookie and cookie in sessions.keys():
-        linked_session = sessions[cookie]
-        username = linked_session["username"]
-        if username in users.keys():
-            user = users[username]
-            if cookie in user.data["active_sessions"]:
-                return user
-            else:
-                del sessions["cookie"]
-    return None
+    session_row = db.get_session(session_id)
+    if session_row is None:
+        return None
+
+    return db.get_user_by_id(session_row["user_id"])
 
 
-def save_users_and_sessions():
-    with open("./data/users_and_sessions.json", "w") as f:
-        json.dump(
-            {
-                "users": {k: v.serialise() for k, v in users.items()},
-                "sessions": sessions,
-            },
-            f,
-        )
-    return
-
-
-def load_users_and_sessions():
-    global users
-    global sessions
-    if os.path.exists("./data/users_and_sessions.json"):
-        with open("./data/users_and_sessions.json", "r") as f:
-            # users, sessions = json.load(f).values()
-            data = json.load(f)
-            users = {k: User.from_json(v) for k, v in data["users"].items()}
-            sessions = data["sessions"]
-    else:
-        print("./data/users_and_sessions.json does not exist: will not load data.")
-    return
-
-
-def needs_user(func):  # decorator to check that the client is logged in
+def needs_user(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-        user = find_user_from_session()  # will use flask session
+        user = find_user_from_session()
         if user:
             return func(user, *args, **kwargs)
         return redirect(url_for("_login"))
@@ -93,249 +57,162 @@ def needs_user(func):  # decorator to check that the client is logged in
     return wrapper
 
 
-class User:
-    def __init__(self, email, password):
-        self.data = {
-            "id": generate_id("user"),
-            "email": email,
-            "password_hash": generate_password_hash(password),
-            "active_sessions": [],
-            "documents": [],
-            "encrypt_data_with_hash": False,
-        }
-        return
+# --------------------------------------------------------------------------
+# Filesystem helpers for audio recordings
+# --------------------------------------------------------------------------
 
-    @staticmethod
-    def from_json(data):
-        user = User("email", "password")
-        user.data = data
-        return user
 
-    def serialise(self):
-        return self.data
+def get_user_folder(user_id):
+    path = f"./data/{user_id}"
+    os.makedirs(path, exist_ok=True)
+    return path
 
-    def login_with_password(self, password):
-        if check_password_hash(self.data["password_hash"], password):
-            new_session = create_session(self)
-            save_sessions()  # the browser will save it client side
-        return new_session
 
-    def logout(self):
-        for session_id in self.data["active_sessions"]:
-            if session_id in sessions:
-                del sessions[session_id]
-            else:
-                print(
-                    f"[{user['email']}] {session_id} not found in sessions, skipping."
-                )
+def get_document_path(user_id, document_id):
+    path = os.path.join(get_user_folder(user_id), document_id)
+    os.makedirs(path, exist_ok=True)
+    return path
 
-        self.data["active_sessions"] = []
 
-        save_sessions()
-        return
+def get_recording_path(user_id, document_id):
+    path = os.path.join(get_document_path(user_id, document_id), "recordings")
+    os.makedirs(path, exist_ok=True)
+    return path
 
-    def get_folder_path(self):
-        path = f"./data/{self.data['id']}"
-        os.makedirs(path, exist_ok=True)
-        return path
 
-    def get_document_path(self, document_id):
-        path = os.path.join(self.get_folder_path(), document_id)
-        os.makedirs(path, exist_ok=True)
-        return path
-
-    def delete_document_path(self, document_id):
-        shutil.rmtree(self.get_document_path(document_id))
-        return
-
-    def get_document_recording_path(self, document_id):
-        path = os.path.join(self.get_document_path(document_id), "recordings")
-        os.makedirs(path, exist_ok=True)
-        return path
-
-    def get_document_ids(self):
-        return [
-            os.path.basename(os.path.dirname(path))
-            for path in glob.glob(os.path.join(self.get_folder_path(), "*/"))
-        ]
-
-    def get_documents(self):
-        docs = {}
-
-        for document_id in self.get_document_ids():
-            docs[document_id] = self.load_document_meta(document_id)
-
-        return docs
-
-    def new_document(self, name):
-        document_id = generate_id("document")
-        document_path = self.get_document_path(document_id)
-        with open(os.path.join(document_path, "doc.json"), "w") as f:
-            f.write("{}")
-
-        with open(os.path.join(document_path, "meta.json"), "w") as f:
-            json.dump(
-                {
-                    "name": name,
-                    "description": "",
-                    "creation": time.time(),
-                    "last_modified": time.time(),
-                },
-                f,
-            )
-
-        return
-
-    def load_document_meta(self, document_id):
-
-        with open(os.path.join(self.get_document_path(document_id), "meta.json")) as f:
-            return json.load(f)
-
-    def load_document(self, document_id):
-        document_path = self.get_document_path(document_id)
-
-        with open(os.path.join(document_path, "meta.json")) as f:
-            meta = json.load(f)
-
-        with open(os.path.join(document_path, "doc.json")) as f:
-            data = json.load(f)
-
-        return {"meta": meta, "data": data}
-
-    def save_document(self, document_id, json_content, name=""):
-        document_path = self.get_document_path(document_id)
-
-        with open(os.path.join(document_path, "meta.json")) as f:
-            meta = json.load(f)
-
-        if name:
-            meta["name"] = name
-
-        meta["last_modified"] = time.time()
-
-        with open(os.path.join(document_path, "meta.json"), "w") as f:
-            json.dump(meta, f)
-
-        with open(os.path.join(document_path, "doc.json"), "w") as f:
-            json.dump(json_content, f)
-
-        return
+# --------------------------------------------------------------------------
+# Auth
+# --------------------------------------------------------------------------
 
 
 @app.route("/login", methods=["POST", "GET"])
 def _login():
     if request.method == "GET":
         return render_template("login.html")
-    elif request.method == "POST":
-        # get data,
-        data = request.json
-        email = data["email"]
-        password = data["password"]
-        # check password
-        # check user exists, then password
-        if email in users.keys():
-            # if user exists, check password is valid
-            user = users[email]
 
-            if check_password_hash(user.data["password_hash"], password):
-                new_session = create_session(user)
-                session["cookie"] = new_session["id"]
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
 
-                save_users_and_sessions()
+    if not email or not password:
+        return jsonify({"success": False, "message": "Email and password are required."})
 
-                return jsonify({"success": True, "message": "Successfully logged in"})
+    user = db.get_user_by_email(email)
+    if user is None or not check_password_hash(user["password_hash"], password):
+        return jsonify({"success": False, "message": "Invalid email or password."})
 
-        return jsonify({"success": False, "message": "Invalid email or password"})
+    new_session_id = generate_id("session")
+    db.create_session(new_session_id, user["id"])
+    session["cookie"] = new_session_id
+
+    return jsonify({"success": True, "message": "Successfully logged in."})
 
 
 @app.route("/signup", methods=["POST", "GET"])
 def _signup():
     if request.method == "GET":
         return render_template("signup.html")
-    elif request.method == "POST":
-        data = request.json
 
-        email = data["email"]
-        password = data["password"]
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
 
-        # ensure there's no existing user with username
-        if email in users.keys():
-            return jsonify(
-                {
-                    "success": False,
-                    "message": "email/username in use. Please choose another.",
-                }
-            )
+    if not email or not password:
+        return jsonify({"success": False, "message": "Email and password are required."})
 
-        # add to the database
-        new_user = User(email, password)
-        users[email] = new_user
+    if len(password) < 8:
+        return jsonify(
+            {"success": False, "message": "Password must be at least 8 characters."}
+        )
 
-        save_users_and_sessions()
+    if db.get_user_by_email(email) is not None:
+        return jsonify(
+            {"success": False, "message": "That email is already in use."}
+        )
 
-        return jsonify({"success": True, "message": f"account created for {email}"})
+    user_id = generate_id("user")
+    db.create_user(user_id, email, generate_password_hash(password))
+
+    # Log the new user straight in so /signup can redirect home.
+    new_session_id = generate_id("session")
+    db.create_session(new_session_id, user_id)
+    session["cookie"] = new_session_id
+
+    return jsonify({"success": True, "message": f"Account created for {email}."})
+
+
+@app.route("/logout")
+def _logout():
+    session_id = session.get("cookie")
+    if session_id:
+        db.delete_session(session_id)
+    session.pop("cookie", None)
+    return redirect(url_for("_login"))
+
+
+# --------------------------------------------------------------------------
+# Pages and documents
+# --------------------------------------------------------------------------
 
 
 @app.route("/", methods=["POST", "GET"])
 @needs_user
 def _index(user):
-    if request.method == "GET":
-        return render_template("index.html")
-    elif request.method == "POST":
-        # ?
-        return
+    return render_template("index.html")
 
 
 @app.route("/documents", methods=["GET"])
 @needs_user
 def _documents(user):
-    if request.method == "GET":
-        # get user documents
-        return user.get_documents()
+    return db.get_documents(user["id"])
 
 
-@app.route("/documents/new", methods=["POST"])  # might want to change this to a POST
+@app.route("/documents/new", methods=["POST"])
 @needs_user
 def _documents_new_doc_name(user):
-    doc_name = request.get_data(as_text=True)
-    user.new_document(doc_name)
-    return "success"
+    doc_name = request.get_data(as_text=True).strip()
+    if not doc_name:
+        doc_name = "Untitled document"
+
+    document_id = generate_id("document")
+    db.create_document(user["id"], document_id, doc_name)
+    return jsonify({"success": True, "id": document_id})
 
 
 @app.route("/documents/load/<doc_id>")
 @needs_user
 def _documents_load_doc_id(user, doc_id):
-    return user.load_document(doc_id)
+    document = db.load_document(user["id"], doc_id)
+    if document is None:
+        return jsonify({"error": "Document not found"}), 404
+    return document
 
 
 @app.route("/documents/delete/<doc_id>", methods=["DELETE"])
 @needs_user
 def _document_delete_doc_id(user, doc_id):
-    # write user.delete
-    user.delete_document_path(doc_id)
+    db.delete_document(user["id"], doc_id)
+    shutil.rmtree(get_document_path(user["id"], doc_id), ignore_errors=True)
     return "success"
 
 
 @app.route("/documents/save/<doc_id>", methods=["POST"])
 @needs_user
 def _document_save_doc_id(user, doc_id):
-    if request.method == "POST":
-        data = request.json
+    data = request.get_json(silent=True) or {}
+    quilldata = data.get("content")
+    namedata = (data.get("name") or "").strip()
 
-        quilldata = data["content"]
-        namedata = data["name"]
+    if quilldata is None:
+        return jsonify({"error": "Missing content"}), 400
 
-        user.save_document(doc_id, quilldata, namedata)
-        return "success"
-
-    return "finished"
+    db.save_document(user["id"], doc_id, quilldata, namedata)
+    return "success"
 
 
 @app.route("/documents/edit")
 @needs_user
 def _documents_edit(user):
-    # render_template editor
-    # on load, quill load doc ID or something
     return render_template("editor.html")
 
 
@@ -348,44 +225,37 @@ def _record(user):
 @app.route("/upload/recordings/<doc_id>", methods=["POST"])
 @needs_user
 def _upload_audio(user, doc_id):
-    if True:
-        if "audio" not in request.files:
-            return jsonify({"error": "No audio file provided"}), 400
+    if "audio" not in request.files:
+        return jsonify({"error": "No audio file provided"}), 400
 
-        file = request.files["audio"]
+    file = request.files["audio"]
+    if not file or not file.filename:
+        return jsonify({"error": "No file selected"}), 400
 
-        if file.filename == "":
-            return jsonify({"error": "No file selected"}), 400
+    file_extension = (
+        "." in file.filename and file.filename.split(".")[-1].lower()
+    ) or "wav"
 
-        if file:
-            # filename = secure_filename(file.filename)
-            file_extension = (
-                "." in file.filename and file.filename.split(".")[-1]
-            ) or None
-            if file_extension:
-                recording_id = generate_id("recording")
-                audio_filename = f"{recording_id}.{file_extension}"
-                filepath = user.get_document_recording_path(doc_id)
-                audio_filepath = os.path.join(filepath, audio_filename)
-                file.save(audio_filepath)
+    recording_id = generate_id("recording")
+    audio_filename = f"{recording_id}.{file_extension}"
+    filepath = get_recording_path(user["id"], doc_id)
+    audio_filepath = os.path.join(filepath, audio_filename)
+    file.save(audio_filepath)
 
-                # also now transcribe & save raw transcription
-                raw_transcription = transcribe(audio_filepath)
-                with open(os.path.join(filepath, f"{recording_id}.txt"), "w") as f:
-                    f.write(raw_transcription)
+    raw_transcription = transcribe(audio_filepath)
+    with open(os.path.join(filepath, f"{recording_id}.txt"), "w") as f:
+        f.write(raw_transcription)
 
-                # also now lightly modify transcription & save transcription
-
-                # return modified transcription OR append to document MD
-
-                return jsonify({"content": raw_transcription, "success": True}), 200
-    else:
-        return None
+    return jsonify({"content": raw_transcription, "success": True}), 200
 
 
-#    except Exception as e:
-#        return jsonify({'content': str(e), "success" : False}), 500
+@app.route("/upload/recording/<doc_id>", methods=["POST"])
+@needs_user
+def _upload_audio_singular(user, doc_id):
+    # Older recorder page uses the singular path; keep it working.
+    return _upload_audio(user, doc_id)
+
 
 if __name__ == "__main__":
-    load_users_and_sessions()
+    db.init_db()
     app.run(host="0.0.0.0", debug=False, port=8082)

@@ -1,8 +1,9 @@
 transcribe:
   whisper:
+    # Model sizes, smallest to largest: tiny, base, small, medium, large, turbo
     model_size_or_path: small
-    device: cuda
-    compute_type: float16
+    # "auto" picks cuda when available, otherwise cpu. Or set "cuda" / "cpu".
+    device: auto
   beam_size: 5
 
 writer:
