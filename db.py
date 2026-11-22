@@ -11,6 +11,7 @@ import time
 
 import psycopg
 from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
@@ -217,7 +218,7 @@ def save_document(user_id, document_id, content, name=""):
                     last_modified = %s
                 WHERE id = %s AND user_id = %s
                 """,
-                (content, name, name, now, document_id, user_id),
+                (Jsonb(content), name, name, now, document_id, user_id),
             )
 
 

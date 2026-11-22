@@ -2,6 +2,7 @@
 
 import os
 import random
+import re
 import shutil
 import time
 from functools import wraps
@@ -22,7 +23,12 @@ from werkzeug.security import check_password_hash, generate_password_hash
 load_dotenv()
 
 import db
-from transcribe import transcribe
+
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def is_valid_email(email):
+    return bool(EMAIL_RE.match(email))
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "somesecretkey")
@@ -123,6 +129,11 @@ def _signup():
 
     if not email or not password:
         return jsonify({"success": False, "message": "Email and password are required."})
+
+    if not is_valid_email(email):
+        return jsonify(
+            {"success": False, "message": "That doesn't look like a valid email address."}
+        )
 
     if len(password) < 8:
         return jsonify(
@@ -245,6 +256,9 @@ def _upload_audio(user, doc_id):
     filepath = get_recording_path(user["id"], doc_id)
     audio_filepath = os.path.join(filepath, audio_filename)
     file.save(audio_filepath)
+
+    # Imported lazily so the app can start (and tests can run) without torch.
+    from transcribe import transcribe
 
     raw_transcription = transcribe(audio_filepath)
     with open(os.path.join(filepath, f"{recording_id}.txt"), "w") as f:

@@ -6,11 +6,12 @@ import whisper
 from settings import settings
 
 _model = None
+_device = None
 
 
 def get_model():
     """Load the Whisper model once and reuse it for later transcriptions."""
-    global _model
+    global _model, _device
     if _model is not None:
         return _model
 
@@ -27,14 +28,15 @@ def get_model():
     download_root = os.getenv("WHISPER_DOWNLOAD_ROOT") or None
 
     print(f"[whisper] loading model '{model_name}' on {device}")
+    _device = device
     _model = whisper.load_model(model_name, device=device, download_root=download_root)
     return _model
 
 
 def transcribe(audio_path):
     model = get_model()
-    # fp16=False keeps CPU transcription working; it's also a good safe default.
-    result = model.transcribe(audio_path, fp16=False)
+    # Half precision is faster (and needs less VRAM) on GPU; on CPU stick to fp32.
+    result = model.transcribe(audio_path, fp16=(_device == "cuda"))
     return result["text"].strip()
 
 

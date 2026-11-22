@@ -3,7 +3,7 @@
 
 {% block body %}
 <div class="auth-page">
-  <form class="auth-card" onsubmit="signUp(); return false;">
+  <form class="auth-card" onsubmit="signUp(); return false;" novalidate>
     <h1>Create your account</h1>
     <p class="auth-subtitle">Start turning your voice into documents.</p>
 
@@ -40,6 +40,13 @@ async function signUp() {
   if (!email || !password) {
     messageElement.className = "auth-message error";
     messageElement.textContent = "Please fill in every field.";
+    return;
+  }
+
+  const emailPattern = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+  if (!emailPattern.test(email)) {
+    messageElement.className = "auth-message error";
+    messageElement.textContent = "That doesn't look like a valid email address.";
     return;
   }
 

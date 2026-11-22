@@ -1,0 +1,24 @@
+# Optional GPU profile.
+#
+# Requires the NVIDIA Container Toolkit on the host:
+#   https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
+#
+# Also set the Whisper device in settings.yml (or leave it on "auto"):
+#   transcribe:
+#     whisper:
+#       device: cuda
+
+services:
+  app:
+    build:
+      dockerfile: Dockerfile.gpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

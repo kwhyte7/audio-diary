@@ -151,7 +151,7 @@
 	    <form id="upload-form" enctype="multipart/form-data"><input type="file" id="file-input" name="file">
 	</form>
         <div class="recording-status">
-            <span class="recording-time">Recording time: <span id="recording-timer">00:00</span></span>
+            <span class="recording-time"><span id="recording-status-label">Recording time:</span> <span id="recording-timer">00:00</span></span>
             <div class="recording-indicator" id="recording-indicator" style="display: none;">
                 <span>Recording in progress...</span>
             </div>
@@ -203,6 +203,7 @@
         const downloadButton = document.getElementById('download-recording');
         const uploadButton = document.getElementById('upload-recording');
         const recordingTimerElement = document.getElementById('recording-timer');
+        const recordingStatusLabel = document.getElementById('recording-status-label');
         const recordingIndicator = document.getElementById('recording-indicator');
 	const enhanceButton = document.getElementById("enhance-selection")
         const saveButton = document.getElementById('save-document');
@@ -336,24 +337,30 @@
 
             const formData = new FormData();
             formData.append('audio', window.currentAudioBlob, `recording-${documentId}.ogx`);
-            
+
+            // Whisper is about to chew on the audio; tell the user.
+            recordingStatusLabel.textContent = "Processing audio...";
+            recordingTimerElement.style.display = "none";
+
             try {
                 const response = await fetch(`/upload/recordings/${documentId}`, {
                     method: 'POST',
                     body: formData
                 });
-                
+
                 if (response.ok) {
-                    // alert("Audio recording uploaded successfully!");
-		    const data = await response.json();
-		    quill.insertText(quill.getLength, data.content);
-		    saveDocument();
+                    const data = await response.json();
+                    quill.insertText(quill.getLength, data.content);
+                    saveDocument();
                 } else {
                     alert("Failed to upload audio recording!");
                 }
             } catch (error) {
                 console.error("Error uploading audio:", error);
                 alert("Error uploading audio recording!");
+            } finally {
+                recordingStatusLabel.textContent = "Recording time:";
+                recordingTimerElement.style.display = "";
             }
         }
 

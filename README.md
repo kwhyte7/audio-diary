@@ -151,14 +151,29 @@ Whisper has three real requirements beyond the Python packages:
 
 If you have an NVIDIA GPU and CUDA set up, set `device: cuda` in `settings.yml`
 (or leave it on `auto` and it'll pick CUDA when available). Local `uv sync`
-installs the CUDA build of torch; the Docker image does **not**, to keep it
-portable. Want GPU in Docker? Swap the CPU torch line in the `Dockerfile` for:
+installs the CUDA build of torch.
 
-```dockerfile
-RUN pip install --no-cache-dir torch
+The default Docker image uses **CPU** torch to keep it portable. To use your
+host GPU from Docker you need the NVIDIA Container Toolkit installed on the
+host, then start with the GPU override file:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
 ```
 
-and make sure the container has access to your GPU runtime.
+That builds from `Dockerfile.gpu` (CUDA torch) and exposes your GPU to the
+container. Set `device: cuda` (or `auto`) in `settings.yml`.
+
+## Running the tests
+
+Install the dev dependency and run pytest:
+
+```bash
+uv pip install -r requirements-dev.txt
+pytest
+```
+
+The route/db tests are mocked, so you don't need a live Postgres for them.
 
 ## Project layout
 

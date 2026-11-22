@@ -74,3 +74,6 @@ dependencies = [
     "urllib3==2.6.3",
     "werkzeug==3.1.4",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
