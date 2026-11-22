@@ -2,13 +2,15 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: audio_diary
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-audio_diary}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d audio_diary"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-audio_diary}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -16,19 +18,19 @@ services:
   app:
     build: .
     ports:
-      - "8082:8082"
+      - "${APP_PORT:-8082}:8082"
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/audio_diary
-      SECRET_KEY: change-me-to-a-long-random-string
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/audio_diary}
+      SECRET_KEY: ${SECRET_KEY:-change-me-to-a-long-random-string}
       # Optional: point Whisper at a mounted cache dir so models survive rebuilds.
       WHISPER_DOWNLOAD_ROOT: /app/whisper_models
     volumes:
       - app_data:/app/data
       - whisper_models:/app/whisper_models
     depends_on:
-
       db:
         condition: service_healthy
+
 volumes:
   postgres_data:
   app_data:

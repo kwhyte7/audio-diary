@@ -6,6 +6,7 @@ import shutil
 import time
 from functools import wraps
 
+from dotenv import load_dotenv
 from flask import (
     Flask,
     jsonify,
@@ -16,6 +17,9 @@ from flask import (
     url_for,
 )
 from werkzeug.security import check_password_hash, generate_password_hash
+
+# Load a local .env file (if present) before db.py reads DATABASE_URL.
+load_dotenv()
 
 import db
 from transcribe import transcribe

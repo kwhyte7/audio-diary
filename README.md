@@ -22,12 +22,35 @@ Images:
 ## The quickest way: Docker
 
 ```bash
+cp .env.example .env   # optional: change ports / password / secret key
 docker compose up --build
 ```
 
 Then open <http://localhost:8082>. That's it. The compose file spins up Postgres
 and the app, and mounts volumes for the database, uploaded audio and the
 Whisper model cache.
+
+You don't have to touch `docker-compose.yml`. Copy `.env.example` to `.env` and
+tweak `APP_PORT`, `DATABASE_URL`, `POSTGRES_PORT`, `POSTGRES_PASSWORD`,
+`SECRET_KEY`, etc. `docker compose` reads that `.env` automatically.
+
+### Using an existing Postgres on your host
+
+If you already run Postgres on your machine, you can point the app at it and
+move the bundled one out of the way, all in `.env`:
+
+```bash
+# Use your own database instead of the bundled one:
+DATABASE_URL=postgresql://user:password@host.docker.internal:5432/audio_diary
+
+# Free up host port 5432 (your own Postgres is using it):
+POSTGRES_PORT=5433
+```
+
+`host.docker.internal` reaches the host from inside a container (on Linux you
+may need `extra_hosts` or the gateway IP `172.17.0.1` instead). If you don't
+need the bundled Postgres at all, just comment out the `db` service in
+`docker-compose.yml` and remove the `depends_on` block.
 
 > The Docker image uses a **CPU** build of torch to keep the image size sane.
 > CPU transcription works fine for `tiny`/`base`/`small`; it just isn't fast.
